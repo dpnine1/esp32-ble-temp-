@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 BLE Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 280px;
+            border: 1px solid #334155;
+        }
+        .status {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-bottom: 1rem;
+        }
+        .temp-display {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #38bdf8;
+            margin: 1rem 0;
+        }
+        .unit {
+            font-size: 1.5rem;
+            color: #64748b;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>ESP32 BLE Test</h2>
+    <div class="status" id="statusText">สถานะ: รอการเชื่อมต่อ</div>
+    <div class="temp-display"><span id="tempValue">--.-</span><span class="unit"> °C</span></div>
+    <button onclick="connectBLE()">เชื่อมต่อ Bluetooth</button>
+</div>
+
+<script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    async function connectBLE() {
+        const statusText = document.getElementById('statusText');
+        try {
+            statusText.innerText = "กำลังค้นหาอุปกรณ์...";
+            
+            // ค้นหา ESP32 จากชื่อที่ตั้งไว้
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'ESP32_Simulated_Temp' }],
+                optionalServices: [SERVICE_UUID]
+            });
+
+            statusText.innerText = "กำลังเชื่อมต่อ GATT...";
+            const server = await device.gatt.connect();
+            
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+            statusText.innerText = "สถานะ: เชื่อมต่อสำเร็จ! 🟢";
+            statusText.style.color = "#4ade80";
+
+            // รับค่า Notify เมื่อ ESP32 ส่งข้อมูลใหม่มา
+            await characteristic.startNotifications();
+            characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                const decoder = new TextDecoder('utf-8');
+                const value = decoder.decode(event.target.value);
+                document.getElementById('tempValue').innerText = value;
+            });
+
+            // ตรวจจับเมื่อบลูทูธหลุด
+            device.addEventListener('gattserverdisconnected', () => {
+                statusText.innerText = "สถานะ: การเชื่อมต่อหลุด 🔴";
+                statusText.style.color = "#f87171";
+            });
+
+        } catch (error) {
+            console.log('Error: ' + error);
+            statusText.innerText = "ข้อผิดพลาด: " + error.message;
+            statusText.style.color = "#f87171";
+        }
+    }
+</script>
+
+</body>
+</html>
